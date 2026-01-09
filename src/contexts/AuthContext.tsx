@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import { db } from '../lib/db';
 import { User, UserRole, Tenant } from '../types';
+import { apiClient } from '../lib/api-client';
 
 interface AuthUser {
   id: string;
@@ -376,159 +377,56 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   async function signIn(email: string, password: string, forCustomer: boolean = false) {
     debugLog('Sign In Started', { email, forCustomer });
     try {
-      const { data: authData, error } = await db.auth.signInWithPassword({
-        email,
-        password,
+      // Use the backend API for authentication
+      const response = await apiClient.signIn(email, password, forCustomer);
+
+      debugLog('Sign In Response', {
+        hasUser: !!response.user,
+        hasTenant: !!response.tenant,
+        hasSession: !!response.session,
+        userRole: response.user?.role
       });
 
-      if (error) {
-        debugLog('Sign In Error', { error: error.message, email, errorCode: error.code });
-        console.error('Sign in API error:', error);
-
-        // Provide more helpful error message for network errors
-        let errorMessage = error.message || 'Authentication failed';
-
-        // Check for server connection errors
-        if (error.code === 'NETWORK_ERROR' ||
-            error.code === 'SERVER_NOT_RUNNING' ||
-            error.message?.includes('Cannot connect to server') ||
-            error.message?.includes('Backend server is not running') ||
-            error.message?.includes('ERR_CONNECTION_REFUSED') ||
-            error.message?.includes('Failed to fetch')) {
-          errorMessage = 'Backend server is not running. Please start the server:\n\n1. Open terminal\n2. cd to project/server\n3. Run: npm run dev\n\nOr double-click start-server.bat';
-        }
-
-        return { error: new Error(errorMessage) };
+      if (!response.user) {
+        return { error: new Error('No user data received from server') };
       }
 
-      if (authData?.user && authData?.session) {
-        debugLog('Auth Successful - Fetching User Profile', { userId: authData.user.id });
+      const userProfile = response.user;
+      const tenantData = response.tenant;
 
-        // Ensure session is set in the client
-        await db.auth.setSession({
-          access_token: authData.session.access_token,
-          refresh_token: authData.session.refresh_token,
-        });
-
-        // Small delay to ensure session is fully established
-        await new Promise(resolve => setTimeout(resolve, 100));
-
-        // Fetch user profile from users table
-        const { data: userProfile, error: profileError } = await db
-          .from('users')
-          .select('id, tenant_id, email, phone, full_name, role, is_active, created_at, updated_at')
-          .eq('id', authData.user.id)
-          .maybeSingle();
-
-        if (profileError || !userProfile) {
-          debugLog('User Profile Fetch Error', {
-            error: profileError?.message,
-            errorCode: profileError?.code,
-            errorDetails: profileError?.details,
-            userId: authData.user.id,
-            hasProfile: !!userProfile
-          });
-          console.error('Profile fetch error details:', {
-            error: profileError,
-            userProfile,
-            userId: authData.user.id
-          });
-          await db.auth.signOut();
-
-          const errorMsg = profileError?.message
-            ? `Account setup error: ${profileError.message}`
-            : 'Account setup incomplete. Please contact support.';
-          return { error: new Error(errorMsg) };
-        }
-
-        // Check if forCustomer flag matches the role
-        if (!forCustomer && userProfile.role === 'customer') {
-          debugLog('Customer Login Blocked on Non-Customer Page', { userId: userProfile.id });
-          await db.auth.signOut();
-          return { error: new Error('Access denied: Customers must use the customer login page.') };
-        }
-
-        if (forCustomer && userProfile.role !== 'customer') {
-          debugLog('Non-Customer Login Blocked on Customer Page', { userId: userProfile.id });
-          await db.auth.signOut();
-          return { error: new Error('Access denied: This login page is for customers only.') };
-        }
-
-        // Check if user is active
-        if (!userProfile.is_active) {
-          debugLog('Inactive User Account', { userId: userProfile.id });
-          await db.auth.signOut();
-          return { error: new Error('Your account has been deactivated. Please contact support.') };
-        }
-
-        let tenantData: Tenant | null = null;
-
-        // Fetch tenant if user has one
-        if (userProfile.tenant_id) {
-          debugLog('Fetching Tenant', { tenantId: userProfile.tenant_id });
-          const { data: tenant, error: tenantError } = await db
-            .from('tenants')
-            .select('*')
-            .eq('id', userProfile.tenant_id)
-            .maybeSingle();
-
-          debugLog('Tenant Fetch Result', {
-            hasTenant: !!tenant,
-            hasError: !!tenantError,
-            errorMessage: tenantError?.message,
-            tenantSlug: tenant?.slug
-          });
-
-          if (tenant) {
-            // Check if tenant is active
-            if (!tenant.is_active) {
-              debugLog('Inactive Tenant Account', { tenantId: tenant.id });
-              await db.auth.signOut();
-              return { error: new Error('Your business account has been deactivated. Please contact support.') };
-            }
-            tenantData = tenant;
-          } else if (tenantError) {
-            debugLog('Tenant Fetch Error', { error: tenantError.message, code: tenantError.code, details: tenantError.details });
-            console.error('Tenant fetch error details:', tenantError);
-          } else {
-            debugLog('No Tenant Found', { tenantId: userProfile.tenant_id });
-          }
-        }
-
-        debugLog('Sign In Successful', {
-          userId: userProfile.id,
-          role: userProfile.role,
-          hasTenant: !!tenantData,
-          tenantSlug: tenantData?.slug
-        });
-
-        // Update state immediately
-        setUser({ id: userProfile.id, email: userProfile.email });
-        setUserProfile(userProfile);
-        if (tenantData) {
-          setTenant(tenantData);
-        }
-
-        // Start token refresh interval (refresh 1 day before expiration)
-        startTokenRefreshInterval();
-
-        console.log('[AuthContext] signIn returning:', {
-          hasUserProfile: !!userProfile,
-          hasTenant: !!tenantData,
-          tenantSlug: tenantData?.slug,
-          userRole: userProfile.role
-        });
-
-        return { userProfile, tenant: tenantData };
+      // Update state immediately
+      setUser({
+        id: userProfile.id,
+        email: userProfile.email,
+        username: userProfile.username
+      });
+      setUserProfile(userProfile);
+      if (tenantData) {
+        setTenant(tenantData);
       }
 
-      debugLog('Sign In Failed - No User Data', { email });
-      console.error('No user data in response:', authData);
-      return { error: new Error('No user data received from server') };
+      // Start token refresh interval
+      startTokenRefreshInterval();
+
+      console.log('[AuthContext] signIn returning:', {
+        hasUserProfile: !!userProfile,
+        hasTenant: !!tenantData,
+        tenantSlug: tenantData?.slug,
+        userRole: userProfile.role
+      });
+
+      return { userProfile, tenant: tenantData };
     } catch (error) {
       debugLog('Sign In Exception', { error: (error as Error).message, email });
       console.error('Sign in exception:', error);
-      return { error: error as Error };
+
+      // Provide helpful error message for connection errors
+      let errorMessage = (error as Error).message;
+      if (errorMessage.includes('fetch') || errorMessage.includes('NetworkError') || errorMessage.includes('ECONNREFUSED')) {
+        errorMessage = 'Backend server is not running. Please start the server:\n\n1. Open terminal\n2. cd to project/server\n3. Run: npm run dev\n\nOr double-click start-server.bat';
+      }
+
+      return { error: new Error(errorMessage) };
     }
   }
 
@@ -545,15 +443,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     // This ensures the token is always fresh
     tokenRefreshIntervalRef.current = setInterval(async () => {
       try {
-        const { data, error } = await db.auth.refreshSession();
-        if (error) {
-          debugLog('Token refresh failed', { error: error.message });
-          // Don't clear session on refresh failure - token might still be valid
-        } else if (data) {
-          debugLog('Token refreshed successfully', {});
-        }
+        await apiClient.refreshToken();
+        debugLog('Token refreshed successfully', {});
       } catch (err) {
         debugLog('Token refresh exception', { error: (err as Error).message });
+        // Don't clear session on refresh failure - token might still be valid
       }
     }, 6 * 24 * 60 * 60 * 1000); // 6 days in milliseconds
   }
@@ -606,7 +500,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   async function signOut() {
     debugLog('Sign Out Started', {});
     stopTokenRefreshInterval();
-    await db.auth.signOut();
+    await apiClient.signOut();
     setUser(null);
     setUserProfile(null);
     setTenant(null);
