@@ -1126,7 +1126,7 @@ export function ReceptionPage() {
   // Helper function to create bookings via API (ensures tickets are sent)
   async function createBookingViaAPI(bookingData: any) {
     // Get base API URL (without /api suffix)
-    let API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001';
+    let API_URL = import.meta.env.VITE_API_URL || '';
     
     // Remove trailing /api if present to avoid double /api/api/
     API_URL = API_URL.replace(/\/api\/?$/, '');
@@ -1242,7 +1242,7 @@ export function ReceptionPage() {
       
       // Create booking via API to ensure tickets are sent
       try {
-        const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001';
+        const API_URL = import.meta.env.VITE_API_URL || '';
         const response = await fetch(`${API_URL}/api/bookings/create`, {
           method: 'POST',
           headers: {
@@ -2055,7 +2055,7 @@ export function ReceptionPage() {
     setQrValidationResult(null);
 
     try {
-      const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001/api';
+      const API_URL = import.meta.env.VITE_API_URL || '';
       const token = localStorage.getItem('auth_token');
 
       const response = await fetch(`${API_URL}/bookings/validate-qr`, {
