@@ -1,0 +1,15 @@
+{
+  "client_id": "your_client_id_here",
+  "client_secret": "your_client_secret_here",
+  "scope": [
+    "ZohoInvoice.invoices.CREATE",
+    "ZohoInvoice.invoices.READ",
+    "ZohoInvoice.invoices.UPDATE",
+    "ZohoInvoice.contacts.CREATE",
+    "ZohoInvoice.contacts.READ"
+  ],
+  "grant_type": "authorization_code",
+  "code": "authorization_code_from_oauth_flow",
+  "expiry_time": 1767603458028
+}
+
