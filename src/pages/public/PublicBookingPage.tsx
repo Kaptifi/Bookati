@@ -1449,7 +1449,29 @@ export function PublicBookingPage() {
                   <User className="w-4 h-4 mr-2" />
                   {i18n.language === 'ar' ? 'حسابي' : 'My Account'}
                 </Button>
-              ) : null}
+              ) : (
+                <Button
+                  size="sm"
+                  onClick={() => navigate(`/${tenantSlug}/customer/login`)}
+                  className="transition-all duration-300 hover:scale-105 shadow-md hover:shadow-lg"
+                  style={{
+                    backgroundColor: primaryColor,
+                    borderColor: primaryColor,
+                    color: 'white'
+                  }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.backgroundColor = secondaryColor;
+                    e.currentTarget.style.borderColor = secondaryColor;
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.backgroundColor = primaryColor;
+                    e.currentTarget.style.borderColor = primaryColor;
+                  }}
+                >
+                  <User className="w-4 h-4 mr-2" />
+                  {i18n.language === 'ar' ? 'تسجيل الدخول' : 'Sign In'}
+                </Button>
+              )}
               <div className="h-6 w-px bg-gray-300"></div>
               <LanguageToggle />
             </div>
