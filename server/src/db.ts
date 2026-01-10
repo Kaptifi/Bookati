@@ -59,9 +59,21 @@ pool.on('connect', () => {
 });
 
 pool.on('error', (err) => {
-  console.error('Unexpected error on idle client', err);
-  process.exit(-1);
+  console.error('Database pool error (non-fatal):', err.message);
+  console.error('Connection will be automatically retried by the pool');
+  // Do NOT exit - let pool handle reconnection automatically
 });
 
+// Test database connection
+export async function testConnection(): Promise<boolean> {
+  try {
+    const result = await pool.query('SELECT NOW() as current_time');
+    console.log('✅ Database connection successful at', result.rows[0].current_time);
+    return true;
+  } catch (error: any) {
+    console.error('❌ Database connection failed:', error.message);
+    return false;
+  }
+}
 
 
