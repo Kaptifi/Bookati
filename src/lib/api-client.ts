@@ -196,7 +196,7 @@ class APIClient {
 
   async checkHealth(): Promise<{ status: string; database?: string }> {
     try {
-      const response = await fetch(`${API_BASE_URL}/health`);
+      const response = await fetch(`${API_BASE_URL}/api/health`);
       return await response.json();
     } catch (error) {
       throw new Error('Backend server is not running. Please start the server with: npm run dev (in the server directory)');
