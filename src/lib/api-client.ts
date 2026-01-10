@@ -27,24 +27,62 @@ class APIClient {
   }
 
   async signIn(email: string, password: string, forCustomer: boolean = false): Promise<SignInResponse> {
-    const response = await fetch(`${API_BASE_URL}/api/auth/signin`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email, password, forCustomer })
+    console.log('[API Client] SignIn Request:', {
+      url: `${API_BASE_URL}/api/auth/signin`,
+      email,
+      forCustomer,
+      API_BASE_URL
     });
 
-    if (!response.ok) {
-      const error = await response.json();
-      throw new Error(error.message || 'Sign in failed');
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/auth/signin`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, password, forCustomer })
+      });
+
+      console.log('[API Client] SignIn Response:', {
+        status: response.status,
+        statusText: response.statusText,
+        ok: response.ok,
+        headers: Object.fromEntries(response.headers.entries())
+      });
+
+      // Get the response text first to see what we're dealing with
+      const responseText = await response.text();
+      console.log('[API Client] Response Text:', responseText);
+
+      if (!response.ok) {
+        let errorMessage = 'Sign in failed';
+        try {
+          const error = JSON.parse(responseText);
+          errorMessage = error.message || error.error || errorMessage;
+        } catch (e) {
+          // Not JSON, use the text as error
+          errorMessage = responseText || `Server error: ${response.status} ${response.statusText}`;
+        }
+        throw new Error(errorMessage);
+      }
+
+      // Parse the JSON
+      let data;
+      try {
+        data = JSON.parse(responseText);
+      } catch (e) {
+        console.error('[API Client] Failed to parse JSON:', e);
+        console.error('[API Client] Response was:', responseText);
+        throw new Error(`Invalid JSON response from server. Response was: ${responseText.substring(0, 100)}`);
+      }
+
+      if (data.session?.access_token) {
+        localStorage.setItem('access_token', data.session.access_token);
+      }
+
+      return data;
+    } catch (error) {
+      console.error('[API Client] SignIn Exception:', error);
+      throw error;
     }
-
-    const data = await response.json();
-
-    if (data.session?.access_token) {
-      localStorage.setItem('access_token', data.session.access_token);
-    }
-
-    return data;
   }
 
   async signUp(
